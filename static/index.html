@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ad Concept Generator powered by Gemini</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-elements">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <!-- Auth Overlay (Hidden by Default) -->
+    <div id="auth-overlay" class="overlay hidden">
+        <div class="auth-card">
+            <!-- Close button for the modal -->
+            <button id="close-auth-btn" style="position: absolute; top: 1.5rem; right: 1.5rem; background: transparent; color: #cbd5e1; padding: 0.5rem; border-radius: 50%; font-size: 1.2rem; cursor: pointer; border: none;">&times;</button>
+            <h2 id="auth-title" style="margin-bottom: 1.5rem;">Welcome Back</h2>
+            <form id="auth-form">
+                <div class="form-group">
+                    <input style="width: 100%;" type="text" id="auth-username" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input style="width: 100%;" type="password" id="auth-password" placeholder="Password" required>
+                </div>
+                <div class="error-msg" id="auth-error"></div>
+                <button type="submit" id="auth-btn" style="width: 100%;">
+                    <span class="btn-text">Login</span>
+                    <div class="spinner hidden"></div>
+                </button>
+            </form>
+            <p class="auth-toggle" style="margin-top: 1rem; text-align: center; color: #94a3b8;">
+                Don't have an account? <span id="toggle-auth" style="color:var(--primary);cursor:pointer;font-weight:600;">Sign up</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Main App Layout -->
+    <div class="container" id="main-app">
+        <header>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+                <div class="badge">AI Powered</div>
+                <!-- Auth controls dynamically swapped via JS -->
+                <div id="auth-controls">
+                    <button id="login-nav-btn" style="padding: 0.5rem 1rem; font-size: 0.8rem; border-radius: 0.5rem; background: var(--primary);">Login to Upload Image</button>
+                    <button id="dashboard-nav-btn" class="hidden" style="padding: 0.5rem 1rem; font-size: 0.8rem; border-radius: 0.5rem; background: var(--secondary);">Go to Dashboard</button>
+                    <button id="logout-btn" class="hidden" style="padding: 0.5rem 1rem; font-size: 0.8rem; border-radius: 0.5rem; background: rgba(255,255,255,0.1); margin-left: 0.5rem;">Logout</button>
+                </div>
+            </div>
+            <h1>Ad Concept Generator</h1>
+            <p>Enter a product URL to generate high-converting Responsive Search Ads and Display Ad concepts instantly.</p>
+        </header>
+
+        <main>
+            <!-- URL Form (Public Mode) -->
+            <form id="url-form">
+                <div class="input-group">
+                    <input type="url" id="url-input" placeholder="https://example.com" required>
+                    <button type="submit" id="url-submit-btn">
+                        <span class="btn-text">Generate Ads</span>
+                        <div class="spinner hidden"></div>
+                    </button>
+                </div>
+            </form>
+
+            <div class="error-msg" id="main-error-msg" style="margin-top: 1rem;"></div>
+
+            <div id="results" class="hidden">
+                <section class="section usp-section smooth-reveal">
+                    <h2>Target USP</h2>
+                    <div class="card usp-card">
+                        <p id="usp-text">Loading...</p>
+                    </div>
+                </section>
+
+                <section class="section rsa-section smooth-reveal delay-1">
+                    <h2>Responsive Search Ads (RSAs)</h2>
+                    <div id="rsa-container" class="card-grid">
+                        <!-- RSAs -->
+                    </div>
+                </section>
+
+                <section class="section display-section smooth-reveal delay-2">
+                    <h2>Display Ad Concepts</h2>
+                    <div id="display-container" class="card-grid">
+                        <!-- Display ads -->
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
