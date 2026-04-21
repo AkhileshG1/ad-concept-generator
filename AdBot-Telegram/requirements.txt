@@ -3,3 +3,9 @@ google-generativeai==0.7.2
 python-dotenv==1.0.1
 requests==2.32.3
 Pillow==10.4.0
+
+# v2 — Real product compositor
+rembg==2.0.57
+onnxruntime==1.18.0
+arabic-reshaper==3.0.0
+python-bidi==0.4.2

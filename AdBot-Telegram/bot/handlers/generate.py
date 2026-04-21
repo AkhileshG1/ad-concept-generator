@@ -25,7 +25,7 @@ async def run_generate_copy(message: Message, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    prompt = build_copy_prompt(session, feedback=feedback)
+    prompt = build_copy_prompt(session, feedback=feedback, language=session.language_code)
 
     import asyncio
     try:
@@ -77,8 +77,10 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rating = query.data.split(":",1)[1]
     if rating in ("approve","4","5"):
         session.state = State.GENERATING_IMG
+        photo_hint = " Using your real product photo! 🎨" if session.photos else ""
         await query.edit_message_text(
-            "🎨 Generating your poster image...\n_Powered by Pollinations.ai — globally available, ~10 seconds_",
+            f"🎨 Generating your professional ad poster...{photo_hint}\n"
+            "_v2 compositor: background removal + pro layout — ~10 seconds_",
             parse_mode="Markdown"
         )
         from bot.handlers.image import run_generate_image

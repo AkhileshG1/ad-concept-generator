@@ -29,6 +29,9 @@ class UserSession:
         self.audience: str = ""
         self.photos: List[bytes] = []
 
+        # Language (v2 — multilingual)
+        self.language_code: str = "en"   # ISO 639-1 code from Telegram
+
         # Generated content
         self.current_copy: dict = {}
         self.current_image_url: str = ""
@@ -111,7 +114,7 @@ class UserSession:
         return (time.time() - self.last_active) > SESSION_TTL_SECONDS
 
     def reset_for_new_ad(self):
-        """Keep PRO status + history; clear product & generated content."""
+        """Keep PRO status + history + language; clear product & generated content."""
         self.state          = State.IDLE
         self.business_type  = ""
         self.platform       = ""
@@ -123,6 +126,7 @@ class UserSession:
         self.current_copy   = {}
         self.current_image_url = ""
         self.feedback_count = 0
+        # Note: language_code is intentionally preserved across ads
 
 
 class SessionManager:

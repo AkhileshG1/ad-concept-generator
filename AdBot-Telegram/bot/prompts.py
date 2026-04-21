@@ -1,24 +1,23 @@
 """
 bot/prompts.py — Industry-specific prompts, schemas, and image prompt builder.
 
-ARCHITECTURE NOTE (Image Quality):
-    The old version sent a vague ~250-char string to Pollinations → random/wrong products.
-
-    New pipeline (2-stage "Vision DNA" approach):
-    ┌──────────────────────────────────────────────────────────────────────┐
-    │  Stage 1 (Gemini Vision):                                            │
-    │    User's product photo → Gemini analyzes → extracts exact product   │
-    │    DNA: colors, materials, shape, texture, distinctive features      │
-    │    This is stored in copy JSON as visual_style (a rich dict)         │
-    │                                                                      │
-    │  Stage 2 (Pollinations FLUX):                                        │
-    │    visual_style dict → build_image_prompt() → professional SD prompt │
-    │    Positive prompt: subject + composition + lighting + mood          │
-    │    Negative prompt: blocks text, watermarks, bad anatomy             │
-    │    → Pollinations.ai FLUX generates the ad poster                   │
-    └──────────────────────────────────────────────────────────────────────┘
-
-    Result: Images that match the actual product (not a random hallucination).
+ARCHITECTURE NOTE (v2 Pipeline):
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │  Stage 1 (Gemini Vision — existing):                                     │
+    │    User's product photo → Gemini analyzes → extracts product DNA         │
+    │    Colors, materials, shape, texture → stored in visual_style dict       │
+    │    Also extracts: brand_colors, template_suggestion, gradient_palette    │
+    │    and generates copy in the USER'S LANGUAGE (multilingual)              │
+    │                                                                          │
+    │  Stage 2A (v2 — Compositor pipeline, when photo uploaded):               │
+    │    real product photo → rembg removes bg → transparent PNG              │
+    │    compositor.py places product on pro gradient layout                   │
+    │    font_manager.py renders headline + CTA using Noto fonts               │
+    │    → Professional ad in user's language, with their real product         │
+    │                                                                          │
+    │  Stage 2B (v1 fallback — Pollinations FLUX, when no photo):              │
+    │    visual_style → build_image_prompt() → FLUX text-to-image              │
+    └──────────────────────────────────────────────────────────────────────────┘
 """
 
 
@@ -125,6 +124,9 @@ Use exactly this structure (replace every "string" with real content):
   "hashtags": ["string", "string", "string"],
   "audience_description": "string",
   "ab_variation": "string",
+  "brand_colors": ["#RRGGBB", "#RRGGBB", "#RRGGBB"],
+  "template_suggestion": "string",
+  "gradient_palette": {"top": "#RRGGBB", "bottom": "#RRGGBB"},
   "visual_style": {
     "subject": "string",
     "composition": "string",
@@ -139,13 +141,18 @@ Use exactly this structure (replace every "string" with real content):
   "poster":    {"headline": "string", "tagline": "string", "bullets": ["string", "string", "string"], "cta": "string"}
 }
 
-Field guidance for visual_style (this field drives the AI image poster):
-- subject:      Exact product description: precise colors (e.g. "matte cream with navy logo"), materials, textures, shape, distinctive features. If photos supplied, describe what you actually SEE in them.
-- composition:  Camera framing: e.g. "centered hero shot, 45-degree angle" or "flat-lay top-down"
-- lighting:     Lighting: e.g. "soft diffused studio light with drop shadow" or "warm golden hour backlight"
-- background:   Background: e.g. "seamless white gradient" or "rustic wooden table, shallow depth of field"
-- mood:         Emotional tone: e.g. "energetic and athletic" or "premium and aspirational"
-- negative:     What to BLOCK in AI image (always start with): "text, watermark, logo, blurry, low quality"
+Field guidance:
+- brand_colors:        3 hex colors that complement this product (e.g. ["#FF6B35", "#FFF3E0", "#E91E63"])
+- template_suggestion: One of: "hero_center" | "split_screen" | "minimalist" | "bold_poster"
+                       hero_center → food/lifestyle, split_screen → fashion/retail,
+                       minimalist → tech/premium, bold_poster → services/local
+- gradient_palette:    Two hex colors for the ad background gradient, top and bottom
+- visual_style.subject:      Exact product description (colors, materials, shape, features)
+- visual_style.composition:  Camera framing (e.g. "centered hero shot, 45-degree angle")
+- visual_style.lighting:     Lighting (e.g. "soft diffused studio light with drop shadow")
+- visual_style.background:   Background description (e.g. "seamless white gradient")
+- visual_style.mood:         Emotional tone (e.g. "energetic and athletic")
+- visual_style.negative:     What to BLOCK in AI image (always include): "text, watermark, logo, blurry, low quality"
 """
 
 
@@ -206,13 +213,14 @@ _MOOD_DEFAULTS = {
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def build_copy_prompt(session, feedback: str = "") -> str:
+def build_copy_prompt(session, feedback: str = "", language: str = "en") -> str:
     """
     Build the Gemini prompt for ad copy generation.
 
     When photos are provided, the prompt explicitly instructs Gemini to
     analyze the photos and extract product DNA into visual_style.subject.
-    This is Stage 1 of the Vision DNA pipeline.
+    Also injects: language instruction for multilingual copy generation,
+    brand_colors + template_suggestion request (v2 compositor fields).
     """
     btype    = session.business_type or "other"
     examples = FEW_SHOT_EXAMPLES.get(btype, FEW_SHOT_EXAMPLES["other"])
@@ -228,10 +236,20 @@ def build_copy_prompt(session, feedback: str = "") -> str:
             f"Address this feedback specifically in the new version.\n"
         )
 
+    # ── Language instruction (v2 — multilingual) ──────────────────────────────
+    lang_section = ""
+    if language and language.lower() not in ("en", "english"):
+        lang_section = f"""
+LANGUAGE INSTRUCTION — IMPORTANT:
+Generate ALL ad copy (headline, body, cta, hashtags, instagram, whatsapp, google, poster)
+in the following language: {language}
+Do NOT translate back to English. Output must be in {language} natively.
+If this language uses a non-Latin script (Arabic, Hindi, Japanese, etc.),
+write directly in that script — do not romanise.
+Only the JSON keys must remain in English.
+"""
+
     # ── Photo analysis instruction (Stage 1: Vision DNA extraction) ──────────
-    # When the user has uploaded photos, Gemini's vision model can SEE the
-    # product. We instruct it to extract precise visual details so our
-    # image generator can reproduce the correct product appearance.
     photo_section = ""
     if session.photos:
         photo_section = """
@@ -244,9 +262,12 @@ For the visual_style.subject field, describe EXACTLY what you see:
   • Distinctive design features (seams, logos placement, patterns, hardware details)
   • Overall product condition and presentation quality
 
-This description will be fed directly to an AI image generator (Flux/Stable Diffusion).
-Think like a professional product photographer writing a shoot brief.
-Be specific enough that someone who has NEVER seen this product could reproduce it from your description.
+For brand_colors: pick 3 hex colors that would look great with this product in an ad.
+For template_suggestion: choose the best layout for this product and business type.
+For gradient_palette: suggest two background hex colors that complement the product.
+
+This visual analysis feeds our Pillow compositor (not Stable Diffusion).
+Think like a professional art director composing an ad layout.
 """
 
     return f"""You are an expert advertising copywriter for {btype} businesses.
@@ -254,7 +275,7 @@ Think step-by-step: audience pain point → product solution → emotional hook 
 
 Style examples for this industry:
 {examples}
-
+{lang_section}
 {photo_section}
 --- GENERATE AD FOR ---
 Product: {session.product_name}

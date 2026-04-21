@@ -17,12 +17,22 @@ WELCOME = (
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    session = sessions.get(update.effective_user.id)
+    user = update.effective_user
+    session = sessions.get(user.id)
     session.reset_for_new_ad()
     session.state = State.CHOOSE_BUSINESS
+
+    # v2: capture user's language from Telegram profile
+    try:
+        from bot.language import extract_language_from_update
+        session.language_code = extract_language_from_update(update)
+    except Exception:
+        session.language_code = "en"
+
     keyboard = [[InlineKeyboardButton(l, callback_data=f"btype:{v}")] for l, v in BUSINESS_TYPES.items()]
     await update.message.reply_text(WELCOME, parse_mode="Markdown",
                                     reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 
 async def handle_business_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
