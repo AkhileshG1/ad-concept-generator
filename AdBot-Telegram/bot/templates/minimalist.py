@@ -1,183 +1,165 @@
-"""bot/templates/minimalist.py — Minimalist dark ad template.
+"""bot/templates/minimalist.py — Minimalist dark template (v2 PRO).
 
-Best for: Tech, SaaS, premium products, electronics.
-Layout: Dark gradient, product centered with glow, clean type below.
+Best for: Tech, SaaS, electronics, premium products.
+Layout: Dark bg with subtle grid, product centered with blue glow, clean text.
 
 Canvas:
-┌────────────────────────┐
-│  (very dark gradient)  │
-│                        │
-│      [Product PNG]     │
-│     ✦ glow effect ✦    │
-│                        │
-│  HEADLINE (large)      │
-│  tagline (small)       │
-│                        │
-│  [ → CTA ]             │
-└────────────────────────┘
+┌──────────────────────────────┐
+│  · · · · · · · · · · · · ·  │  ← subtle dot grid
+│                              │
+│     ░░░ BLUE GLOW  ░░░      │
+│     ░░ [ PRODUCT ] ░░       │  ← product with electric glow
+│     ░░░░░░░░░░░░░░░░░       │
+│                              │
+│        HEADLINE              │  ← clean white text
+│        body text             │
+│                              │
+│        Learn More →          │  ← text CTA (no button - minimal)
+└──────────────────────────────┘
 """
 import io
 import math
 from PIL import Image, ImageDraw, ImageFilter
 from bot.font_manager import get_font, prepare_text, is_rtl
 from bot.templates._utils import safe_get
+from bot.templates._effects import (
+    enhance_product, add_drop_shadow, add_glow_behind,
+    make_gradient, wrap_text, measure_text,
+)
 
 
 DARK_GRADIENTS = {
-    "tech":      [(8,   12,  20),  (18, 26,  40)],
-    "fashion":   [(10,  10,  18),  (25, 15,  35)],
-    "services":  [(12,  12,  25),  (25, 20,  50)],
-    "other":     [(10,  10,  18),  (20, 20,  35)],
+    "tech":      [(10, 18, 35),    (20, 40, 75)],
+    "saas":      [(12, 12, 25),    (25, 30, 60)],
+    "electronics":[(8, 12, 20),    (18, 28, 50)],
+    "other":     [(15, 15, 30),    (30, 30, 60)],
 }
 
 GLOW_COLORS = {
-    "tech":      (40, 100, 255),
-    "fashion":   (180, 30, 100),
-    "services":  (100, 60, 200),
-    "other":     (60,  80, 200),
+    "tech":      (0, 140, 255),    # electric blue
+    "saas":      (100, 80, 255),   # purple
+    "electronics":(0, 200, 200),   # teal
+    "other":     (80, 120, 255),   # blue
 }
-
-ACCENT_COLORS = {
-    "tech":      (88,  166, 255),
-    "fashion":   (233, 69,  96),
-    "services":  (150, 100, 255),
-    "other":     (100, 180, 255),
-}
-
-
-def _make_gradient(size, top, bottom):
-    w, h = size
-    img = Image.new("RGB", size)
-    draw = ImageDraw.Draw(img)
-    for y in range(h):
-        t = y / h
-        r = int(top[0] * (1 - t) + bottom[0] * t)
-        g = int(top[1] * (1 - t) + bottom[1] * t)
-        b = int(top[2] * (1 - t) + bottom[2] * t)
-        draw.line([(0, y), (w, y)], fill=(r, g, b))
-    return img
-
-
-def _wrap_text(draw, text, font, max_width):
-    if not text:
-        return ""
-    words = text.split()
-    lines, current = [], []
-    for word in words:
-        test = " ".join(current + [word])
-        bbox = draw.textbbox((0, 0), test, font=font)
-        if bbox[2] - bbox[0] > max_width and current:
-            lines.append(" ".join(current))
-            current = [word]
-        else:
-            current.append(word)
-    if current:
-        lines.append(" ".join(current))
-    return "\n".join(lines)
 
 
 def compose(
     product_png: bytes,
     copy: dict,
     platform: str = "instagram",
-    business_type: str = "tech",
+    business_type: str = "other",
     language: str = "en",
     brand_color: tuple = None,
 ) -> bytes:
-    sizes = {"instagram": (1080, 1080), "poster": (1080, 1350), "whatsapp": (800, 800)}
+    """Render a Minimalist dark ad poster — market-grade quality."""
+
+    sizes = {
+        "instagram": (1080, 1080),
+        "poster":    (1080, 1350),
+        "whatsapp":  (800,  800),
+    }
     W, H = sizes.get(platform, (1080, 1080))
     cx = W // 2
 
-    biz = (business_type or "tech").lower()
+    biz = (business_type or "other").lower()
     grad_top, grad_bot = DARK_GRADIENTS.get(biz, DARK_GRADIENTS["other"])
-    glow_color = GLOW_COLORS.get(biz, GLOW_COLORS["other"])
-    accent = brand_color or ACCENT_COLORS.get(biz, (88, 166, 255))
-    rtl = is_rtl(language)
+    glow_color = brand_color or GLOW_COLORS.get(biz, GLOW_COLORS["other"])
 
-    canvas = _make_gradient((W, H), grad_top, grad_bot).convert("RGBA")
+    # ── Dark gradient canvas ──────────────────────────────────────────────────
+    canvas = make_gradient((W, H), grad_top, grad_bot).convert("RGBA")
 
-    # ── Radial glow in upper center ───────────────────────────────────────────
-    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow)
-    gr = int(min(W, H) * 0.45)
-    gy = int(H * 0.35)
-    gd.ellipse([cx - gr, gy - gr, cx + gr, gy + gr], fill=glow_color + (50,))
-    glow = glow.filter(ImageFilter.GaussianBlur(radius=90))
-    canvas = Image.alpha_composite(canvas, glow)
+    # ── Subtle dot grid (tech aesthetic) ──────────────────────────────────────
+    grid = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    g_draw = ImageDraw.Draw(grid)
+    spacing = 35
+    for y in range(0, H, spacing):
+        for x in range(0, W, spacing):
+            g_draw.ellipse([x, y, x + 2, y + 2], fill=(255, 255, 255, 18))
+    canvas = Image.alpha_composite(canvas, grid)
 
-    # ── Fine dot grid pattern (subtle texture) ────────────────────────────────
-    texture = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    td = ImageDraw.Draw(texture)
-    dot_color = tuple(min(255, c + 25) for c in grad_top) + (30,)
-    for xx in range(0, W, 40):
-        for yy in range(0, H, 40):
-            td.ellipse([xx, yy, xx + 2, yy + 2], fill=dot_color)
-    canvas = Image.alpha_composite(canvas, texture)
+    # ── Subtle radial glow in center ──────────────────────────────────────────
+    glow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    gl_draw = ImageDraw.Draw(glow_layer)
+    glow_r = int(min(W, H) * 0.38)
+    gl_draw.ellipse([cx - glow_r, int(H * 0.25) - glow_r,
+                      cx + glow_r, int(H * 0.25) + glow_r],
+                     fill=glow_color + (25,))
+    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=80))
+    canvas = Image.alpha_composite(canvas, glow_layer)
 
     draw = ImageDraw.Draw(canvas)
 
-    # ── Product — upper center ─────────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════════════
+    # PRODUCT — Centered in upper half with electric glow
+    # ══════════════════════════════════════════════════════════════════════════
     product = Image.open(io.BytesIO(product_png)).convert("RGBA")
-    max_pw = int(W * 0.60)
-    max_ph = int(H * 0.45)
-    product.thumbnail((max_pw, max_ph), Image.LANCZOS)
+    product = enhance_product(product, target_brightness=1.5)
+
+    prod_zone_h = int(H * 0.50)
+    prod_zone_w = int(W * 0.70)
+    product.thumbnail((prod_zone_w, prod_zone_h), Image.LANCZOS)
     pw, ph = product.size
     px = cx - pw // 2
-    py = int(H * 0.06)
+    py = int(H * 0.08)
 
-    # Glow halo behind product
-    halo = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    halo_draw = ImageDraw.Draw(halo)
-    halo_color = glow_color + (90,)
-    halo_r = max(pw, ph) // 2 + 60
-    halo_cx = px + pw // 2
-    halo_cy = py + ph // 2
-    halo_draw.ellipse([halo_cx - halo_r, halo_cy - halo_r, halo_cx + halo_r, halo_cy + halo_r], fill=halo_color)
-    halo = halo.filter(ImageFilter.GaussianBlur(radius=50))
-    canvas = Image.alpha_composite(canvas, halo)
-    canvas.paste(product, (px, py), product)
+    # Electric glow behind product
+    canvas = add_glow_behind(canvas, product, (px, py),
+                             glow_color=glow_color, glow_opacity=60,
+                             glow_radius=70, glow_scale=1.3)
+
+    # Shadow
+    canvas = add_drop_shadow(canvas, product, (px, py),
+                             shadow_opacity=90, shadow_offset=(0, 15), blur_radius=30)
+
     draw = ImageDraw.Draw(canvas)
-
     y_cursor = py + ph + int(H * 0.04)
 
-    # ── Thin accent line ──────────────────────────────────────────────────────
-    line_w = W // 5
-    draw.rectangle([cx - line_w // 2, y_cursor, cx + line_w // 2, y_cursor + 2], fill=accent)
-    y_cursor += 20
-
-    # ── Headline ──────────────────────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════════════
+    # HEADLINE
+    # ══════════════════════════════════════════════════════════════════════════
     headline = prepare_text(safe_get(copy, "headline", "Your Product"), language)
-    h_font = get_font(language, size=max(52, W // 16), bold=True)
-    wrapped_h = _wrap_text(draw, headline, h_font, int(W * 0.85))
-    hbbox = draw.textbbox((0, 0), wrapped_h, font=h_font)
-    hw = hbbox[2] - hbbox[0]
-    hh = hbbox[3] - hbbox[1]
-    n_hl = wrapped_h.count("\n") + 1
-    draw.text((cx - hw // 2, y_cursor), wrapped_h, font=h_font, fill=(255, 255, 255), align="center")
-    y_cursor += hh * n_hl + 20
+    h_size = max(52, W // 16)
+    h_font = get_font(language, size=h_size, bold=True)
+    wrapped_h = wrap_text(draw, headline, h_font, int(W * 0.85))
+    h_bbox_full = draw.multiline_textbbox((0, 0), wrapped_h, font=h_font)
+    hw = h_bbox_full[2] - h_bbox_full[0]
+    total_hh = h_bbox_full[3] - h_bbox_full[1]
 
-    # ── Tagline / body (short) ────────────────────────────────────────────────
-    body_short = prepare_text(safe_get(copy, "body")[:90], language)
-    b_font = get_font(language, size=max(26, W // 34))
-    wrapped_b = _wrap_text(draw, body_short, b_font, int(W * 0.70))
-    bbbox = draw.textbbox((0, 0), wrapped_b, font=b_font)
-    bw = bbbox[2] - bbbox[0]
-    bh = bbbox[3] - bbbox[1]
-    n_bl = wrapped_b.count("\n") + 1
-    draw.text((cx - bw // 2, y_cursor), wrapped_b, font=b_font, fill=(150, 170, 200), align="center")
-    y_cursor += bh * n_bl + 35
+    h_x = cx - hw // 2
+    draw.multiline_text((h_x, y_cursor), wrapped_h, font=h_font, fill=(255, 255, 255))
+    y_cursor += total_hh + int(H * 0.02)
 
-    # ── CTA — text with arrow, no filled button (minimalist style) ────────────
+    # ── Body ──────────────────────────────────────────────────────────────────
+    body = prepare_text(safe_get(copy, "body")[:90], language)
+    b_size = max(26, W // 34)
+    b_font = get_font(language, size=b_size)
+    wrapped_b = wrap_text(draw, body, b_font, int(W * 0.70))
+    b_bbox_full = draw.multiline_textbbox((0, 0), wrapped_b, font=b_font)
+    bw = b_bbox_full[2] - b_bbox_full[0]
+    total_bh = b_bbox_full[3] - b_bbox_full[1]
+
+    b_x = cx - bw // 2
+    draw.multiline_text((b_x, y_cursor), wrapped_b, font=b_font, fill=(170, 180, 200))
+    y_cursor += total_bh + int(H * 0.035)
+
+    # ── CTA — text with underline (minimal style) ────────────────────────────
     cta = prepare_text(safe_get(copy, "cta", "Learn More →"), language)
-    cta_font = get_font(language, size=32, bold=True)
+    cta_size = max(32, W // 28)
+    cta_font = get_font(language, size=cta_size, bold=True)
     cta_bbox = draw.textbbox((0, 0), cta, font=cta_font)
     cta_w = cta_bbox[2] - cta_bbox[0]
     cta_h = cta_bbox[3] - cta_bbox[1]
-    cta_x = cx - cta_w // 2
-    # Underline style button
-    draw.text((cta_x, y_cursor), cta, font=cta_font, fill=accent)
-    draw.rectangle([cta_x, y_cursor + cta_h + 4, cta_x + cta_w, y_cursor + cta_h + 7], fill=accent)
 
+    cta_x = cx - cta_w // 2
+    cta_y = min(y_cursor, H - cta_h - int(H * 0.06))
+    draw.text((cta_x, cta_y), cta, font=cta_font, fill=glow_color)
+
+    # Underline accent
+    draw.rectangle([cta_x, cta_y + cta_h + 6, cta_x + cta_w, cta_y + cta_h + 9],
+                    fill=glow_color)
+
+    # ── Final output ──────────────────────────────────────────────────────────
+    final = canvas.convert("RGB")
     buf = io.BytesIO()
-    canvas.convert("RGB").save(buf, format="JPEG", quality=92)
+    final.save(buf, format="JPEG", quality=93)
     return buf.getvalue()

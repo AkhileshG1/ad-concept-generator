@@ -34,7 +34,21 @@ async def run_generate_copy(message: Message, context: ContextTypes.DEFAULT_TYPE
             None, generate_ad_copy, prompt, session.photos or None
         )
     except Exception as e:
-        await message.reply_text(f"❌ Gemini error: `{e}`\n\nTry /start to begin again.", parse_mode="Markdown")
+        error_str = str(e)
+        if "429" in error_str or "quota" in error_str.lower():
+            await message.reply_text(
+                "⏳ *AI is busy right now* — too many requests per minute.\n\n"
+                "The bot tried 3 times automatically but the API is still throttled.\n"
+                "Please wait **30 seconds** and try again.\n\n"
+                "💡 _This is a free-tier rate limit (5 requests/minute), not a billing issue._",
+                parse_mode="Markdown"
+            )
+        else:
+            await message.reply_text(
+                f"❌ *Generation error:* `{str(e)[:200]}`\n\n"
+                "Try /start to begin again.",
+                parse_mode="Markdown"
+            )
         return
 
     session.current_copy = copy

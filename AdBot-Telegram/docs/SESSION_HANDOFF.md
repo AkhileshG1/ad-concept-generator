@@ -9,12 +9,7 @@
 | Component | Status | Notes |
 |---|---|---|
 | Telegram bot | ✅ Working | Run: `source venv/bin/activate && python -W ignore telegram_bot.py` |
-| Gemini 2.5 Flash | ✅ Working | JSON parsing fixed (4-stage robust parser) |
-| Pollinations FLUX | ✅ Working | Upgraded from SDXL → FLUX model |
-| Vision DNA pipeline | ✅ Working | Gemini extracts product DNA into `visual_style` dict |
-| Negative prompts | ✅ Working | Industry-calibrated per business type |
-| Telegram Stars | ✅ Working | Full payment flow end-to-end |
-| Canva affiliate | ✅ Working | Tagged links in every delivery |
+| ✅ Working | Tagged links in every delivery |
 
 ---
 

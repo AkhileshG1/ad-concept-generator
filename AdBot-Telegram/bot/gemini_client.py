@@ -16,6 +16,7 @@ JSON PARSING — WHY IT'S ROBUST NOW:
 """
 import json
 import re
+import time
 import logging
 from typing import List, Optional
 
@@ -24,14 +25,17 @@ from config import GEMINI_API_KEY, GEMINI_MODEL
 
 log = logging.getLogger(__name__)
 
+# ── Retry config for rate limits ──────────────────────────────────────────────
+MAX_RETRIES = 3
+BASE_DELAY = 10  # seconds — free tier resets in ~8-10s
+
 
 def generate_ad_copy(prompt: str, photos: Optional[List[bytes]] = None) -> dict:
     """
     Call Gemini with a prompt (+ optional product photos) and return parsed JSON.
 
-    The response_mime_type="application/json" hint tells Gemini to output JSON,
-    but Gemini 2.5 Flash (thinking model) still prefixes with thinking tokens.
-    _safe_json_parse() handles all of this gracefully.
+    Includes automatic retry with exponential backoff for 429 rate limit errors.
+    Free tier allows 5 requests/minute — retries silently wait and try again.
 
     Args:
         prompt: The full copy-generation prompt (from build_copy_prompt)
@@ -42,7 +46,7 @@ def generate_ad_copy(prompt: str, photos: Optional[List[bytes]] = None) -> dict:
 
     Raises:
         ValueError: If JSON cannot be extracted after all fallback attempts
-        Any Gemini API error (quota, auth, model unavailable)
+        Exception: If all retries exhausted or non-retryable error
     """
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel(GEMINI_MODEL)
@@ -54,16 +58,53 @@ def generate_ad_copy(prompt: str, photos: Optional[List[bytes]] = None) -> dict:
         for p in photos[:3]:  # max 3 photos
             contents.append({"mime_type": "image/jpeg", "data": p})
 
-    result = model.generate_content(
-        contents,
-        generation_config=genai.GenerationConfig(
-            response_mime_type="application/json",  # Hint: return JSON
-            temperature=0.85,                       # Creative but consistent
-            max_output_tokens=4096,                 # Increased: rich visual_style needs more tokens
-        ),
-    )
+    last_error = None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            result = model.generate_content(
+                contents,
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.85,
+                    max_output_tokens=4096,
+                ),
+            )
+            return _safe_json_parse(result.text)
 
-    return _safe_json_parse(result.text)
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+
+            # Only retry on 429 rate limit errors
+            if "429" not in error_str and "quota" not in error_str.lower():
+                raise  # Non-retryable error — raise immediately
+
+            if attempt < MAX_RETRIES:
+                # Extract retry delay from error if available, or use backoff
+                delay = _extract_retry_delay(error_str) or (BASE_DELAY * (2 ** attempt))
+                log.warning(
+                    f"Rate limited (attempt {attempt + 1}/{MAX_RETRIES + 1}). "
+                    f"Waiting {delay:.0f}s before retry..."
+                )
+                time.sleep(delay)
+            else:
+                log.error(f"All {MAX_RETRIES + 1} attempts exhausted. Last error: {e}")
+
+    raise last_error
+
+
+def _extract_retry_delay(error_str: str) -> Optional[float]:
+    """Extract the retry delay from a Gemini 429 error message."""
+    # Pattern: "retry in 8.593970094s" or "seconds: 8"
+    match = re.search(r"retry[_ ]?(?:in|delay)[:\s]*(\d+\.?\d*)", error_str, re.IGNORECASE)
+    if match:
+        return float(match.group(1)) + 1.0  # Add 1s buffer
+
+    match = re.search(r"seconds:\s*(\d+)", error_str)
+    if match:
+        return float(match.group(1)) + 1.0
+
+    return None
 
 
 def _safe_json_parse(raw_text: str) -> dict:

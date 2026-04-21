@@ -1,201 +1,193 @@
-"""bot/templates/bold_poster.py — Bold Poster ad template.
+"""bot/templates/bold_poster.py — Bold Poster ad template (v2 PRO).
 
-Best for: Local services, restaurants, events, promotions, salons.
-Layout: Vibrant color block, large headline, bullet benefits, strong CTA.
+Best for: Services, restaurants, local businesses, education.
+Layout: Vibrant header band, product in center, bullet benefits, full-width CTA.
 
 Canvas:
-┌────────────────────────┐
-│█ VIBRANT HEADER BLOCK █│
-│  BIG BOLD HEADLINE     │
-│  ────────────────      │
-│    [Product PNG]       │
-│  ────────────────      │
-│  ✓ Benefit 1           │
-│  ✓ Benefit 2           │
-│  ✓ Benefit 3           │
-│                        │
-│  [ BOOK NOW / ORDER ]  │
-└────────────────────────┘
+┌──────────────────────────────┐
+│ ██████  HEADLINE  ██████████ │  ← vibrant header band
+│ ██████████████████████████   │
+├──────────────────────────────┤
+│                              │
+│       [ PRODUCT ]            │  ← product centered, medium
+│                              │
+│  ✓ Benefit one here          │
+│  ✓ Second great benefit      │  ← bullet points with checkmarks
+│  ✓ Third compelling reason   │
+│                              │
+│ ╔══════════════════════════╗ │
+│ ║    CALL TO ACTION        ║ │  ← full-width vibrant button
+│ ╚══════════════════════════╝ │
+└──────────────────────────────┘
 """
 import io
 from PIL import Image, ImageDraw, ImageFilter
 from bot.font_manager import get_font, prepare_text, is_rtl
 from bot.templates._utils import safe_get, safe_bullets
+from bot.templates._effects import (
+    enhance_product, add_drop_shadow, make_gradient,
+    wrap_text, measure_text,
+)
 
 
 VIBRANT_PALETTES = {
-    "food":      {"header": (220, 50,  50),  "bg": (255, 245, 235), "text": (30, 20, 20),  "accent": (220, 50, 50)},
-    "services":  {"header": (41,  98,  255), "bg": (240, 245, 255), "text": (15, 25, 60),  "accent": (41, 98, 255)},
-    "wellness":  {"header": (46,  160, 67),  "bg": (240, 255, 244), "text": (15, 50, 20),  "accent": (46, 160, 67)},
-    "beauty":    {"header": (200, 30, 120),  "bg": (255, 240, 248), "text": (60, 15, 40),  "accent": (200, 30, 120)},
-    "fashion":   {"header": (30,  30,  50),  "bg": (245, 245, 250), "text": (20, 20, 40),  "accent": (200, 50, 80)},
-    "education": {"header": (15,  76,  175), "bg": (240, 248, 255), "text": (10, 30, 70),  "accent": (15, 76, 175)},
-    "other":     {"header": (60,  90,  200), "bg": (240, 245, 255), "text": (20, 30, 70),  "accent": (60, 90, 200)},
+    "services":  {"bg": [(240, 240, 248), (225, 225, 240)], "header": (80, 70, 200),  "accent": (255, 90, 80)},
+    "restaurant":{"bg": [(255, 245, 235), (255, 230, 210)], "header": (200, 60, 30),  "accent": (255, 180, 50)},
+    "local":     {"bg": [(240, 248, 255), (220, 235, 255)], "header": (30, 100, 200), "accent": (255, 200, 50)},
+    "education": {"bg": [(245, 240, 255), (230, 220, 250)], "header": (100, 50, 200), "accent": (255, 160, 50)},
+    "beauty":    {"bg": [(255, 240, 245), (255, 225, 235)], "header": (200, 50, 100), "accent": (255, 220, 100)},
+    "fitness":   {"bg": [(240, 245, 240), (220, 235, 220)], "header": (30, 140, 80),  "accent": (255, 200, 50)},
+    "other":     {"bg": [(242, 242, 250), (228, 228, 242)], "header": (60, 60, 160),  "accent": (255, 120, 60)},
 }
-
-
-def _wrap_text(draw, text, font, max_width):
-    if not text:
-        return ""
-    words = text.split()
-    lines, current = [], []
-    for word in words:
-        test = " ".join(current + [word])
-        bbox = draw.textbbox((0, 0), test, font=font)
-        if bbox[2] - bbox[0] > max_width and current:
-            lines.append(" ".join(current))
-            current = [word]
-        else:
-            current.append(word)
-    if current:
-        lines.append(" ".join(current))
-    return "\n".join(lines)
-
-
-def _draw_check_items(draw, items, font, x, y, accent, text_color, rtl):
-    """Draw a list of bullet/benefit items with checkmarks."""
-    check_char = "✓ "
-    spacing = 10
-    for item in items:
-        if not item.strip():
-            continue
-        full = prepare_text(check_char + item, "en")  # checkmark always LTR
-        bbox = draw.textbbox((0, 0), full, font=font)
-        h = bbox[3] - bbox[1]
-
-        # Checkmark in accent color
-        draw.text((x, y), "✓ ", font=font, fill=accent)
-        check_bbox = draw.textbbox((0, 0), "✓ ", font=font)
-        check_w = check_bbox[2] - check_bbox[0]
-
-        # Item text
-        draw.text((x + check_w, y), item, font=font, fill=text_color)
-        y += h + spacing
-    return y
 
 
 def compose(
     product_png: bytes,
     copy: dict,
     platform: str = "instagram",
-    business_type: str = "services",
+    business_type: str = "other",
     language: str = "en",
     brand_color: tuple = None,
 ) -> bytes:
-    sizes = {"instagram": (1080, 1080), "poster": (1080, 1350), "whatsapp": (800, 800)}
+    """Render a Bold Poster ad — market-grade quality."""
+
+    sizes = {
+        "instagram": (1080, 1080),
+        "poster":    (1080, 1350),
+        "whatsapp":  (800,  800),
+    }
     W, H = sizes.get(platform, (1080, 1080))
+    cx = W // 2
 
-    biz = (business_type or "services").lower()
+    biz = (business_type or "other").lower()
     palette = VIBRANT_PALETTES.get(biz, VIBRANT_PALETTES["other"])
-    if brand_color:
-        palette = {**palette, "header": brand_color, "accent": brand_color}
-
-    header_color = palette["header"]
-    bg_color = palette["bg"]
-    text_color = palette["text"]
+    bg_top, bg_bot = palette["bg"]
+    header_color = brand_color or palette["header"]
     accent = palette["accent"]
-    rtl = is_rtl(language)
 
-    canvas = Image.new("RGBA", (W, H), bg_color + (255,))
+    # ── Light gradient background ─────────────────────────────────────────────
+    canvas = make_gradient((W, H), bg_top, bg_bot).convert("RGBA")
     draw = ImageDraw.Draw(canvas)
 
-    # ── Header color block (top 22% of canvas) ────────────────────────────────
-    header_h = int(H * 0.22)
-    draw.rectangle([0, 0, W, header_h], fill=header_color)
+    # ══════════════════════════════════════════════════════════════════════════
+    # HEADER BAND — Vibrant colored band with headline
+    # ══════════════════════════════════════════════════════════════════════════
+    header_h = int(H * 0.18)
 
-    # ── Headline inside header ────────────────────────────────────────────────
+    # Header gradient (darker → lighter)
+    header_light = tuple(min(255, c + 40) for c in header_color)
+    header_img = make_gradient((W, header_h), header_color, header_light)
+    canvas.paste(header_img, (0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # Headline inside header
     headline = prepare_text(safe_get(copy, "headline", "Special Offer"), language)
-    h_font = get_font(language, size=max(52, W // 16), bold=True)
+    h_size = max(48, W // 16)
+    h_font = get_font(language, size=h_size, bold=True)
     max_hw = int(W * 0.88)
-    wrapped_h = _wrap_text(draw, headline, h_font, max_hw)
-    hbbox = draw.textbbox((0, 0), wrapped_h, font=h_font)
-    hw = hbbox[2] - hbbox[0]
-    hh = hbbox[3] - hbbox[1]
-    n_hl = wrapped_h.count("\n") + 1
-    total_hh = hh * n_hl
-    # Center in header block
-    hx = (W - hw) // 2
-    hy = (header_h - total_hh) // 2
-    # Shadow for readability
-    draw.text((hx + 2, hy + 2), wrapped_h, font=h_font, fill=(0, 0, 0, 80))
-    draw.text((hx, hy), wrapped_h, font=h_font, fill=(255, 255, 255), align="center")
+    wrapped_h = wrap_text(draw, headline, h_font, max_hw)
+    h_bbox_full = draw.multiline_textbbox((0, 0), wrapped_h, font=h_font)
+    hw = h_bbox_full[2] - h_bbox_full[0]
+    total_hh = h_bbox_full[3] - h_bbox_full[1]
 
-    # ── Separator line ────────────────────────────────────────────────────────
-    sep_y = header_h + 18
-    line_w = int(W * 0.60)
-    draw.rectangle([(W - line_w) // 2, sep_y, (W + line_w) // 2, sep_y + 4], fill=header_color)
+    h_x = cx - hw // 2
+    h_y = (header_h - total_hh) // 2
 
-    # ── Product image (center, below header) ──────────────────────────────────
+    draw.multiline_text((h_x, h_y), wrapped_h, font=h_font, fill=(255, 255, 255), align="center")
+
+    y_cursor = header_h + int(H * 0.025)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PRODUCT — Centered, medium size
+    # ══════════════════════════════════════════════════════════════════════════
     product = Image.open(io.BytesIO(product_png)).convert("RGBA")
-    max_pw = int(W * 0.55)
-    max_ph = int(H * 0.32)
-    product.thumbnail((max_pw, max_ph), Image.LANCZOS)
+    product = enhance_product(product, target_brightness=1.3)
+
+    prod_zone_h = int(H * 0.35)
+    prod_zone_w = int(W * 0.60)
+    product.thumbnail((prod_zone_w, prod_zone_h), Image.LANCZOS)
     pw, ph = product.size
-    px = (W - pw) // 2
-    py = header_h + 30
+    px = cx - pw // 2
+    py = y_cursor
 
-    # Light shadow
-    shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    shadow_mask = Image.new("RGBA", product.size, (0, 0, 0, 50))
-    if product.mode == "RGBA":
-        shadow_mask.putalpha(product.getchannel("A"))
-    shadow.paste(shadow_mask, (px + 8, py + 10), shadow_mask)
-    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=12))
-    canvas = Image.alpha_composite(canvas, shadow)
-    canvas.paste(product, (px, py), product)
+    canvas = add_drop_shadow(canvas, product, (px, py),
+                             shadow_color=(80, 80, 120), shadow_opacity=80,
+                             shadow_offset=(0, 12), blur_radius=20)
+
     draw = ImageDraw.Draw(canvas)
+    y_cursor = py + ph + int(H * 0.025)
 
-    y_cursor = py + ph + 20
+    # ── Thin divider line ─────────────────────────────────────────────────────
+    margin = int(W * 0.08)
+    draw.rectangle([margin, y_cursor, W - margin, y_cursor + 2], fill=header_color + (60,))
+    y_cursor += int(H * 0.02)
 
-    # ── Second separator ──────────────────────────────────────────────────────
-    draw.rectangle([(W - line_w) // 2, y_cursor, (W + line_w) // 2, y_cursor + 4], fill=header_color)
-    y_cursor += 20
-
-    # ── Bullet benefits (from copy.poster.bullets or parse from body) ─────────
+    # ══════════════════════════════════════════════════════════════════════════
+    # BULLET BENEFITS
+    # ══════════════════════════════════════════════════════════════════════════
     bullets = safe_bullets(copy, max_items=3)
+    text_color = (40, 40, 60)  # Dark text on light background
 
     if bullets:
-        b_font = get_font(language, size=max(28, W // 30))
-        y_cursor = _draw_check_items(draw, bullets, b_font, int(W * 0.12), y_cursor, accent, text_color, rtl)
-        y_cursor += 20
+        b_size = max(26, W // 32)
+        b_font = get_font(language, size=b_size)
+        check_font = get_font(language, size=b_size, bold=True)
+        b_x = int(W * 0.10)
+
+        for bullet in bullets:
+            bt = prepare_text(bullet, language)
+            # Checkmark in accent color
+            draw.text((b_x, y_cursor), "✓", font=check_font, fill=header_color)
+            draw.text((b_x + int(W * 0.04), y_cursor), bt, font=b_font, fill=text_color)
+            y_cursor += int(H * 0.045)
+
+        y_cursor += int(H * 0.015)
     else:
         body = prepare_text(safe_get(copy, "body")[:120], language)
-        b_font = get_font(language, size=max(28, W // 30))
-        wrapped_b = _wrap_text(draw, body, b_font, int(W * 0.80))
-        bbbox = draw.textbbox((0, 0), wrapped_b, font=b_font)
-        bh = bbbox[3] - bbbox[1]
-        n_bl = wrapped_b.count("\n") + 1
-        draw.text((int(W * 0.10), y_cursor), wrapped_b, font=b_font, fill=text_color)
-        y_cursor += bh * n_bl + 20
+        b_size = max(26, W // 32)
+        b_font = get_font(language, size=b_size)
+        wrapped_b = wrap_text(draw, body, b_font, int(W * 0.80))
+        b_bbox_full = draw.multiline_textbbox((0, 0), wrapped_b, font=b_font)
+        bw = b_bbox_full[2] - b_bbox_full[0]
+        total_bh = b_bbox_full[3] - b_bbox_full[1]
+        b_x = cx - bw // 2
+        draw.multiline_text((b_x, y_cursor), wrapped_b, font=b_font, fill=text_color)
+        y_cursor += total_bh + int(H * 0.025)
 
-    # ── CTA button (full width, bold) ─────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════════════
+    # CTA BUTTON — Full-width, vibrant
+    # ══════════════════════════════════════════════════════════════════════════
     cta = prepare_text(safe_get(copy, "cta", "Order Now"), language)
-    cta_font = get_font(language, size=36, bold=True)
+    cta_size = max(34, W // 26)
+    cta_font = get_font(language, size=cta_size, bold=True)
     cta_bbox = draw.textbbox((0, 0), cta, font=cta_font)
-    cta_w = cta_bbox[2] - cta_bbox[0]
-    cta_h = cta_bbox[3] - cta_bbox[1]
+    cta_tw = cta_bbox[2] - cta_bbox[0]
+    cta_th = cta_bbox[3] - cta_bbox[1]
 
-    btn_margin = int(W * 0.10)
-    btn_x1 = btn_margin
-    btn_x2 = W - btn_margin
-    btn_h_total = cta_h + 36
-    btn_y1 = y_cursor + 10
-    btn_y2 = btn_y1 + btn_h_total
+    pad_x, pad_y = 50, 22
+    btn_w = max(cta_tw + pad_x * 2, int(W * 0.75))
+    btn_h = cta_th + pad_y * 2
+    btn_x = cx - btn_w // 2
+    btn_y = min(y_cursor, H - btn_h - int(H * 0.04))
 
     # Button shadow
-    shadow2 = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    sd2 = ImageDraw.Draw(shadow2)
-    sd2.rounded_rectangle([btn_x1 + 4, btn_y1 + 4, btn_x2 + 4, btn_y2 + 4], radius=btn_h_total // 2, fill=(0, 0, 0, 60))
-    shadow2 = shadow2.filter(ImageFilter.GaussianBlur(radius=8))
-    canvas = Image.alpha_composite(canvas, shadow2)
+    shadow_btn = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    sb_draw = ImageDraw.Draw(shadow_btn)
+    sb_draw.rounded_rectangle([btn_x + 3, btn_y + 5, btn_x + btn_w + 3, btn_y + btn_h + 5],
+                               radius=btn_h // 2, fill=(0, 0, 0, 60))
+    shadow_btn = shadow_btn.filter(ImageFilter.GaussianBlur(radius=8))
+    canvas = Image.alpha_composite(canvas, shadow_btn)
     draw = ImageDraw.Draw(canvas)
 
-    draw.rounded_rectangle([btn_x1, btn_y1, btn_x2, btn_y2], radius=btn_h_total // 2, fill=accent)
-    brightness = (accent[0] * 299 + accent[1] * 587 + accent[2] * 114) / 1000
-    btn_text_color = (20, 20, 20) if brightness > 128 else (255, 255, 255)
-    cta_x = (W - cta_w) // 2
-    draw.text((cta_x, btn_y1 + 18), cta, font=cta_font, fill=btn_text_color)
+    draw.rounded_rectangle([btn_x, btn_y, btn_x + btn_w, btn_y + btn_h],
+                            radius=btn_h // 2, fill=header_color)
 
+    tx = cx - cta_tw // 2
+    ty = btn_y + pad_y
+    draw.text((tx, ty), cta, font=cta_font, fill=(255, 255, 255))
+
+    # ── Final output ──────────────────────────────────────────────────────────
+    final = canvas.convert("RGB")
     buf = io.BytesIO()
-    canvas.convert("RGB").save(buf, format="JPEG", quality=92)
+    final.save(buf, format="JPEG", quality=93)
     return buf.getvalue()
