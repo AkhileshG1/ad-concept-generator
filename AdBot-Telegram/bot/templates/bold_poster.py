@@ -20,6 +20,7 @@ Canvas:
 import io
 from PIL import Image, ImageDraw, ImageFilter
 from bot.font_manager import get_font, prepare_text, is_rtl
+from bot.templates._utils import safe_get, safe_bullets
 
 
 VIBRANT_PALETTES = {
@@ -103,7 +104,7 @@ def compose(
     draw.rectangle([0, 0, W, header_h], fill=header_color)
 
     # ── Headline inside header ────────────────────────────────────────────────
-    headline = prepare_text(copy.get("headline", ""), language)
+    headline = prepare_text(safe_get(copy, "headline", "Special Offer"), language)
     h_font = get_font(language, size=max(52, W // 16), bold=True)
     max_hw = int(W * 0.88)
     wrapped_h = _wrap_text(draw, headline, h_font, max_hw)
@@ -151,23 +152,14 @@ def compose(
     y_cursor += 20
 
     # ── Bullet benefits (from copy.poster.bullets or parse from body) ─────────
-    bullets = []
-    poster_data = copy.get("poster", {})
-    if poster_data and poster_data.get("bullets"):
-        bullets = poster_data["bullets"][:3]
-    else:
-        # Extract sentences from body as bullets
-        body = copy.get("body", "")
-        sentences = [s.strip() for s in body.replace(".", ". ").split(". ") if len(s.strip()) > 10]
-        bullets = sentences[:3]
+    bullets = safe_bullets(copy, max_items=3)
 
     if bullets:
         b_font = get_font(language, size=max(28, W // 30))
         y_cursor = _draw_check_items(draw, bullets, b_font, int(W * 0.12), y_cursor, accent, text_color, rtl)
         y_cursor += 20
     else:
-        # Fallback — body text
-        body = prepare_text(copy.get("body", "")[:120], language)
+        body = prepare_text(safe_get(copy, "body")[:120], language)
         b_font = get_font(language, size=max(28, W // 30))
         wrapped_b = _wrap_text(draw, body, b_font, int(W * 0.80))
         bbbox = draw.textbbox((0, 0), wrapped_b, font=b_font)
@@ -177,7 +169,7 @@ def compose(
         y_cursor += bh * n_bl + 20
 
     # ── CTA button (full width, bold) ─────────────────────────────────────────
-    cta = prepare_text(copy.get("cta", "Order Now"), language)
+    cta = prepare_text(safe_get(copy, "cta", "Order Now"), language)
     cta_font = get_font(language, size=36, bold=True)
     cta_bbox = draw.textbbox((0, 0), cta, font=cta_font)
     cta_w = cta_bbox[2] - cta_bbox[0]

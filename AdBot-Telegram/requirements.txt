@@ -9,3 +9,5 @@ rembg==2.0.57
 onnxruntime==1.18.0
 arabic-reshaper==3.0.0
 python-bidi==0.4.2
+# Pinned: onnxruntime 1.18 is incompatible with NumPy 2.x
+numpy<2

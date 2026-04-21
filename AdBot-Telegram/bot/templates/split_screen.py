@@ -17,6 +17,7 @@ Canvas (default 1080×1080):
 import io
 from PIL import Image, ImageDraw, ImageFilter
 from bot.font_manager import get_font, prepare_text, is_rtl
+from bot.templates._utils import safe_get, safe_brand_color
 
 GRADIENTS = {
     "food":      [(255, 107, 53),  (255, 195, 113)],
@@ -126,13 +127,13 @@ def compose(
 
     # Brand label (small tag)
     tag_font = get_font(language, size=22, bold=True)
-    tag_text = prepare_text(business_type.upper() if business_type else "AD", language)
+    tag_text = prepare_text(safe_get(copy, "headline", business_type.upper() if business_type else "AD")[:20], language)
     right_draw.text((text_x, cy), tag_text, font=tag_font, fill=accent)
     cy += 40
 
     # Headline
     h_font = get_font(language, size=max(44, W // 22), bold=True)
-    headline = prepare_text(copy.get("headline", ""), language)
+    headline = prepare_text(safe_get(copy, "headline", "Your Product"), language)
     wrapped_h = _wrap_text(right_draw, headline, h_font, text_max_w)
     right_draw.text((text_x, cy), wrapped_h, font=h_font, fill=(255, 255, 255))
     n_hlines = wrapped_h.count("\n") + 1
@@ -145,7 +146,7 @@ def compose(
 
     # Body text
     b_font = get_font(language, size=max(26, W // 36))
-    body = prepare_text(copy.get("body", "")[:140], language)
+    body = prepare_text(safe_get(copy, "body")[:140], language)
     wrapped_b = _wrap_text(right_draw, body, b_font, text_max_w)
     right_draw.text((text_x, cy), wrapped_b, font=b_font, fill=(190, 190, 200))
     n_blines = wrapped_b.count("\n") + 1
@@ -153,7 +154,7 @@ def compose(
     cy += (bbbox[3] - bbbox[1]) * n_blines + 40
 
     # CTA button
-    cta = prepare_text(copy.get("cta", "Shop Now →"), language)
+    cta = prepare_text(safe_get(copy, "cta", "Shop Now →"), language)
     cta_font = get_font(language, size=30, bold=True)
     c_bbox = right_draw.textbbox((0, 0), cta, font=cta_font)
     cw, ch = c_bbox[2] - c_bbox[0], c_bbox[3] - c_bbox[1]

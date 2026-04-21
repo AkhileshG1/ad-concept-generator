@@ -20,6 +20,7 @@ import io
 import math
 from PIL import Image, ImageDraw, ImageFilter
 from bot.font_manager import get_font, prepare_text, is_rtl
+from bot.templates._utils import safe_get
 
 
 DARK_GRADIENTS = {
@@ -145,7 +146,7 @@ def compose(
     y_cursor += 20
 
     # ── Headline ──────────────────────────────────────────────────────────────
-    headline = prepare_text(copy.get("headline", ""), language)
+    headline = prepare_text(safe_get(copy, "headline", "Your Product"), language)
     h_font = get_font(language, size=max(52, W // 16), bold=True)
     wrapped_h = _wrap_text(draw, headline, h_font, int(W * 0.85))
     hbbox = draw.textbbox((0, 0), wrapped_h, font=h_font)
@@ -156,7 +157,7 @@ def compose(
     y_cursor += hh * n_hl + 20
 
     # ── Tagline / body (short) ────────────────────────────────────────────────
-    body_short = prepare_text(copy.get("body", "")[:90], language)
+    body_short = prepare_text(safe_get(copy, "body")[:90], language)
     b_font = get_font(language, size=max(26, W // 34))
     wrapped_b = _wrap_text(draw, body_short, b_font, int(W * 0.70))
     bbbox = draw.textbbox((0, 0), wrapped_b, font=b_font)
@@ -167,7 +168,7 @@ def compose(
     y_cursor += bh * n_bl + 35
 
     # ── CTA — text with arrow, no filled button (minimalist style) ────────────
-    cta = prepare_text(copy.get("cta", "Learn More →"), language)
+    cta = prepare_text(safe_get(copy, "cta", "Learn More →"), language)
     cta_font = get_font(language, size=32, bold=True)
     cta_bbox = draw.textbbox((0, 0), cta, font=cta_font)
     cta_w = cta_bbox[2] - cta_bbox[0]

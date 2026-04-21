@@ -1,0 +1,17 @@
+# ── Core ──────────────────────────────────────────────────────────────────────
+python-telegram-bot==21.5
+google-generativeai==0.7.2
+python-dotenv==1.0.1
+requests==2.32.3
+
+# ── FastAPI web app (existing) ────────────────────────────────────────────────
+fastapi==0.115.0
+uvicorn==0.30.6
+python-multipart==0.0.12
+pydantic==2.9.2
+beautifulsoup4==4.12.3
+PyJWT==2.9.0
+bcrypt==4.2.0
+
+# ── Optional: image quality check with Pillow ─────────────────────────────────
+Pillow==10.4.0

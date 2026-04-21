@@ -24,6 +24,7 @@ import io
 import math
 from PIL import Image, ImageDraw, ImageFilter
 from bot.font_manager import get_font, prepare_text, is_rtl
+from bot.templates._utils import safe_get, safe_bullets, safe_brand_color
 
 
 # ── Industry gradient palettes ──────────────────────────────────────────────
@@ -169,7 +170,7 @@ def compose(
     rtl = is_rtl(language)
 
     # ── Headline ──────────────────────────────────────────────────────────────
-    headline = prepare_text(copy.get("headline", ""), language)
+    headline = prepare_text(safe_get(copy, "headline", "Your Product"), language)
     h_font = get_font(language, size=max(48, W // 18), bold=True)
     h_color = (255, 255, 255)
 
@@ -206,7 +207,7 @@ def compose(
     y_cursor = py + ph + int(H * 0.03)
 
     # ── Body / tagline ────────────────────────────────────────────────────────
-    body = prepare_text(copy.get("body", "")[:120], language)  # limit length
+    body = prepare_text(safe_get(copy, "body")[:120], language)  # limit length
     b_font = get_font(language, size=max(28, W // 30))
     b_color = (220, 220, 220)
     wrapped_body = _wrap_text(draw, body, b_font, int(W * 0.75))
@@ -219,7 +220,7 @@ def compose(
     y_cursor += b_line_h * blines + int(H * 0.025)
 
     # ── CTA button ────────────────────────────────────────────────────────────
-    cta = copy.get("cta", "Get Yours Now →")
+    cta = safe_get(copy, "cta", "Get Yours Now →")
     _draw_cta_button(draw, cta, cx, y_cursor, accent, language, W)
 
     # ── Convert to JPEG ───────────────────────────────────────────────────────
