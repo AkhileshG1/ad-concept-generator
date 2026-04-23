@@ -1,21 +1,24 @@
-"""bot/templates/minimalist.py — Minimalist dark template (v2 PRO).
+"""bot/templates/minimalist.py — Minimalist Dark template (v2 AGENCY GRADE).
 
 Best for: Tech, SaaS, electronics, premium products.
-Layout: Dark bg with subtle grid, product centered with blue glow, clean text.
 
-Canvas:
-┌──────────────────────────────┐
-│  · · · · · · · · · · · · ·  │  ← subtle dot grid
-│                              │
-│     ░░░ BLUE GLOW  ░░░      │
-│     ░░ [ PRODUCT ] ░░       │  ← product with electric glow
-│     ░░░░░░░░░░░░░░░░░       │
-│                              │
-│        HEADLINE              │  ← clean white text
-│        body text             │
-│                              │
-│        Learn More →          │  ← text CTA (no button - minimal)
-└──────────────────────────────┘
+Layout:
+  ┌──────────────────────────────────────────┐
+  │  · · · · · · · · · · · · · · · · · · · │  ← scanlines + dot grid
+  │                                          │
+  │      ░░░░░░ ELECTRIC GLOW ░░░░░░        │
+  │      ░░░  ╔═══════════════╗  ░░░        │
+  │      ░░░  ║   PRODUCT     ║  ░░░        │  ← 52% hero zone, glow
+  │      ░░░  ╚═══════════════╝  ░░░        │
+  │      [ floor reflection ]                │
+  │                                          │
+  │   ╔══════════════════════════════════╗  │  ← frosted glass panel
+  │   ║  HEADLINE (bold white)           ║  │
+  │   ║  body text (subtle)              ║  │
+  │   ╚══════════════════════════════════╝  │
+  │                                          │
+  │          ── CTA ──                       │  ← underlined minimal CTA
+  └──────────────────────────────────────────┘
 """
 import io
 import math
@@ -24,22 +27,31 @@ from bot.font_manager import get_font, prepare_text, is_rtl
 from bot.templates._utils import safe_get
 from bot.templates._effects import (
     enhance_product, add_drop_shadow, add_glow_behind,
-    make_gradient, wrap_text, measure_text,
+    add_product_reflection, make_gradient, make_radial_glow,
+    add_dot_pattern, add_scanlines, add_vignette, add_frosted_glass_panel,
+    draw_text_with_shadow, wrap_text, measure_text,
 )
 
 
 DARK_GRADIENTS = {
-    "tech":      [(10, 18, 35),    (20, 40, 75)],
-    "saas":      [(12, 12, 25),    (25, 30, 60)],
-    "electronics":[(8, 12, 20),    (18, 28, 50)],
-    "other":     [(15, 15, 30),    (30, 30, 60)],
+    "tech":        [(8, 16, 38),    (18, 38, 80)],
+    "saas":        [(10, 10, 24),   (22, 26, 58)],
+    "electronics": [(6, 10, 20),    (16, 26, 52)],
+    "other":       [(12, 12, 30),   (28, 28, 65)],
 }
 
 GLOW_COLORS = {
-    "tech":      (0, 140, 255),    # electric blue
-    "saas":      (100, 80, 255),   # purple
-    "electronics":(0, 200, 200),   # teal
-    "other":     (80, 120, 255),   # blue
+    "tech":        (0, 150, 255),
+    "saas":        (110, 80, 255),
+    "electronics": (0, 210, 210),
+    "other":       (80, 130, 255),
+}
+
+ACCENT_COLORS = {
+    "tech":        (0, 200, 255),
+    "saas":        (140, 100, 255),
+    "electronics": (0, 230, 220),
+    "other":       (100, 160, 255),
 }
 
 
@@ -51,7 +63,7 @@ def compose(
     language: str = "en",
     brand_color: tuple = None,
 ) -> bytes:
-    """Render a Minimalist dark ad poster — market-grade quality."""
+    """Render a Minimalist dark ad — agency-grade quality."""
 
     sizes = {
         "instagram": (1080, 1080),
@@ -63,103 +75,169 @@ def compose(
 
     biz = (business_type or "other").lower()
     grad_top, grad_bot = DARK_GRADIENTS.get(biz, DARK_GRADIENTS["other"])
-    glow_color = brand_color or GLOW_COLORS.get(biz, GLOW_COLORS["other"])
+    glow_col = brand_color or GLOW_COLORS.get(biz, GLOW_COLORS["other"])
+    accent   = ACCENT_COLORS.get(biz, (100, 160, 255))
 
-    # ── Dark gradient canvas ──────────────────────────────────────────────────
+    # ── 1. Dark gradient canvas ────────────────────────────────────────────────
     canvas = make_gradient((W, H), grad_top, grad_bot).convert("RGBA")
 
-    # ── Subtle dot grid (tech aesthetic) ──────────────────────────────────────
-    grid = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    g_draw = ImageDraw.Draw(grid)
-    spacing = 35
-    for y in range(0, H, spacing):
-        for x in range(0, W, spacing):
-            g_draw.ellipse([x, y, x + 2, y + 2], fill=(255, 255, 255, 18))
-    canvas = Image.alpha_composite(canvas, grid)
+    # ── 2. Scanlines (tech feel) ───────────────────────────────────────────────
+    canvas = add_scanlines(canvas, gap=4, opacity=12)
 
-    # ── Subtle radial glow in center ──────────────────────────────────────────
-    glow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    gl_draw = ImageDraw.Draw(glow_layer)
-    glow_r = int(min(W, H) * 0.38)
-    gl_draw.ellipse([cx - glow_r, int(H * 0.25) - glow_r,
-                      cx + glow_r, int(H * 0.25) + glow_r],
-                     fill=glow_color + (25,))
-    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=80))
-    canvas = Image.alpha_composite(canvas, glow_layer)
+    # ── 3. Dot grid ───────────────────────────────────────────────────────────
+    canvas = add_dot_pattern(canvas, spacing=36, dot_size=2, opacity=16)
+
+    # ── 4. Radial glow ────────────────────────────────────────────────────────
+    glow_overlay = make_radial_glow(
+        (W, H), (cx, int(H * 0.32)),
+        glow_col, int(min(W, H) * 0.40), opacity=40
+    )
+    canvas = Image.alpha_composite(canvas, glow_overlay)
+
+    # ── 5. Subtle vignette ────────────────────────────────────────────────────
+    canvas = add_vignette(canvas, strength=70)
 
     draw = ImageDraw.Draw(canvas)
 
+    # ── Top accent bar ─────────────────────────────────────────────────────────
+    bar_h = max(4, H // 220)
+    bar_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    b_draw = ImageDraw.Draw(bar_layer)
+    b_draw.rectangle([0, 0, W, bar_h], fill=(*glow_col[:3], 200))
+    canvas = Image.alpha_composite(canvas, bar_layer)
+    draw = ImageDraw.Draw(canvas)
+
     # ══════════════════════════════════════════════════════════════════════════
-    # PRODUCT — Centered in upper half with electric glow
+    # PRODUCT — Top half, electric glow + shadow + reflection
     # ══════════════════════════════════════════════════════════════════════════
     product = Image.open(io.BytesIO(product_png)).convert("RGBA")
-    product = enhance_product(product, target_brightness=1.5)
+    product = enhance_product(product, target_brightness=1.55)
 
-    prod_zone_h = int(H * 0.50)
-    prod_zone_w = int(W * 0.70)
+    prod_zone_h = int(H * 0.52)
+    prod_zone_w = int(W * 0.74)
     product.thumbnail((prod_zone_w, prod_zone_h), Image.LANCZOS)
     pw, ph = product.size
     px = cx - pw // 2
-    py = int(H * 0.08)
+    py = int(H * 0.07)
 
-    # Electric glow behind product
-    canvas = add_glow_behind(canvas, product, (px, py),
-                             glow_color=glow_color, glow_opacity=60,
-                             glow_radius=70, glow_scale=1.3)
-
-    # Shadow
-    canvas = add_drop_shadow(canvas, product, (px, py),
-                             shadow_opacity=90, shadow_offset=(0, 15), blur_radius=30)
+    # Multi-layer electric glow
+    canvas = add_glow_behind(
+        canvas, product, (px, py),
+        glow_color=glow_col, glow_opacity=65,
+        glow_radius=90, glow_scale=1.4
+    )
+    canvas = add_glow_behind(
+        canvas, product, (px, py),
+        glow_color=tuple(min(255, c + 60) for c in glow_col),
+        glow_opacity=40, glow_radius=40, glow_scale=1.15
+    )
+    canvas = add_drop_shadow(
+        canvas, product, (px, py),
+        shadow_opacity=110, shadow_offset=(0, 18), blur_radius=38
+    )
+    canvas = add_product_reflection(canvas, product, (px, py), opacity=35, height_fraction=0.22)
 
     draw = ImageDraw.Draw(canvas)
-    y_cursor = py + ph + int(H * 0.04)
+    y_cursor = py + ph + int(H * 0.032)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # HEADLINE
+    # FROSTED GLASS TEXT PANEL — headline + body
     # ══════════════════════════════════════════════════════════════════════════
     headline = prepare_text(safe_get(copy, "headline", "Your Product"), language)
-    h_size = max(52, W // 16)
+    h_size = max(54, W // 15)
     h_font = get_font(language, size=h_size, bold=True)
-    wrapped_h = wrap_text(draw, headline, h_font, int(W * 0.85))
-    h_bbox_full = draw.multiline_textbbox((0, 0), wrapped_h, font=h_font)
-    hw = h_bbox_full[2] - h_bbox_full[0]
-    total_hh = h_bbox_full[3] - h_bbox_full[1]
+    wrapped_h = wrap_text(draw, headline, h_font, int(W * 0.82))
+    h_bbox = draw.multiline_textbbox((0, 0), wrapped_h, font=h_font)
+    hw = h_bbox[2] - h_bbox[0]
+    hh = h_bbox[3] - h_bbox[1]
 
-    h_x = cx - hw // 2
-    draw.multiline_text((h_x, y_cursor), wrapped_h, font=h_font, fill=(255, 255, 255))
-    y_cursor += total_hh + int(H * 0.02)
-
-    # ── Body ──────────────────────────────────────────────────────────────────
-    body = prepare_text(safe_get(copy, "body")[:90], language)
+    body = prepare_text(safe_get(copy, "body", "")[:120], language)
     b_size = max(26, W // 34)
     b_font = get_font(language, size=b_size)
-    wrapped_b = wrap_text(draw, body, b_font, int(W * 0.70))
-    b_bbox_full = draw.multiline_textbbox((0, 0), wrapped_b, font=b_font)
-    bw = b_bbox_full[2] - b_bbox_full[0]
-    total_bh = b_bbox_full[3] - b_bbox_full[1]
+    wrapped_b = wrap_text(draw, body, b_font, int(W * 0.74))
+    b_bbox = draw.multiline_textbbox((0, 0), wrapped_b, font=b_font)
+    bh = b_bbox[3] - b_bbox[1]
 
-    b_x = cx - bw // 2
-    draw.multiline_text((b_x, y_cursor), wrapped_b, font=b_font, fill=(170, 180, 200))
-    y_cursor += total_bh + int(H * 0.035)
+    panel_pad = int(H * 0.035)
+    panel_h = hh + bh + panel_pad * 3
+    panel_x1 = int(W * 0.06)
+    panel_x2 = W - int(W * 0.06)
+    panel_y1 = y_cursor
+    panel_y2 = y_cursor + panel_h
 
-    # ── CTA — text with underline (minimal style) ────────────────────────────
+    if panel_y2 < H - int(H * 0.12):
+        canvas = add_frosted_glass_panel(
+            canvas,
+            (panel_x1, panel_y1, panel_x2, panel_y2),
+            color=glow_col, opacity=18, radius=22, border_opacity=55
+        )
+        draw = ImageDraw.Draw(canvas)
+
+        h_x = cx - hw // 2
+        canvas = draw_text_with_shadow(
+            canvas, (h_x, panel_y1 + panel_pad), wrapped_h, h_font,
+            fill=(255, 255, 255), shadow_color=(0, 0, 0),
+            shadow_offset=3, shadow_blur=10, multiline=True
+        )
+        draw = ImageDraw.Draw(canvas)
+
+        # Body text
+        bw = b_bbox[2] - b_bbox[0]
+        bx = cx - bw // 2
+        draw.multiline_text(
+            (bx, panel_y1 + panel_pad + hh + int(panel_pad * 0.8)),
+            wrapped_b, font=b_font,
+            fill=(165, 185, 210), align="center"
+        )
+        y_cursor = panel_y2 + int(H * 0.030)
+    else:
+        # Compact: just print headline without panel
+        h_x = cx - hw // 2
+        canvas = draw_text_with_shadow(
+            canvas, (h_x, y_cursor), wrapped_h, h_font,
+            fill=(255, 255, 255), shadow_color=(0, 0, 0),
+            shadow_offset=3, shadow_blur=10, multiline=True
+        )
+        draw = ImageDraw.Draw(canvas)
+        y_cursor += hh + int(H * 0.02)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CTA — minimal with glowing underline
+    # ══════════════════════════════════════════════════════════════════════════
     cta = prepare_text(safe_get(copy, "cta", "Learn More →"), language)
-    cta_size = max(32, W // 28)
+    cta_size = max(34, W // 26)
     cta_font = get_font(language, size=cta_size, bold=True)
     cta_bbox = draw.textbbox((0, 0), cta, font=cta_font)
     cta_w = cta_bbox[2] - cta_bbox[0]
-    cta_h = cta_bbox[3] - cta_bbox[1]
+    cta_h2 = cta_bbox[3] - cta_bbox[1]
 
     cta_x = cx - cta_w // 2
-    cta_y = min(y_cursor, H - cta_h - int(H * 0.06))
-    draw.text((cta_x, cta_y), cta, font=cta_font, fill=glow_color)
+    cta_y = min(y_cursor, H - cta_h2 - int(H * 0.055))
 
-    # Underline accent
-    draw.rectangle([cta_x, cta_y + cta_h + 6, cta_x + cta_w, cta_y + cta_h + 9],
-                    fill=glow_color)
+    # Glow underline (3 layers: wide soft, medium, thin sharp)
+    underline_y = cta_y + cta_h2 + 6
+    glow_layers = [(5, 60), (3, 130), (1, 220)]
+    for thickness, alpha_val in glow_layers:
+        ug = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        ImageDraw.Draw(ug).rectangle(
+            [cta_x, underline_y, cta_x + cta_w, underline_y + thickness],
+            fill=(*accent[:3], alpha_val)
+        )
+        ug = ug.filter(ImageFilter.GaussianBlur(radius=max(1, thickness)))
+        canvas = Image.alpha_composite(canvas, ug)
 
-    # ── Final output ──────────────────────────────────────────────────────────
+    draw = ImageDraw.Draw(canvas)
+    solid_line = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(solid_line).rectangle(
+        [cta_x, underline_y, cta_x + cta_w, underline_y + 2],
+        fill=(*accent[:3], 220)
+    )
+    canvas = Image.alpha_composite(canvas, solid_line)
+    draw = ImageDraw.Draw(canvas)
+    draw.text((cta_x, cta_y), cta, font=cta_font, fill=accent[:3])
+
+    # ── Final output ───────────────────────────────────────────────────────────
     final = canvas.convert("RGB")
     buf = io.BytesIO()
-    final.save(buf, format="JPEG", quality=93)
+    final.save(buf, format="JPEG", quality=95, optimize=True)
     return buf.getvalue()

@@ -1,61 +1,77 @@
-"""bot/templates/split_screen.py — Split Screen ad template (v2 PRO).
+"""bot/templates/split_screen.py — Split Screen ad template (v2 AGENCY GRADE).
 
 Best for: Fashion, retail, e-commerce, clothing.
-Layout: Product on LEFT (60%), text + CTA on RIGHT (40%).
 
-Design philosophy:
-  - Product dominates the left side (hero treatment)
-  - Clean text column on right with clear hierarchy
-  - Large headline, body, and prominent CTA
-  - Accent stripe separating the two halves
-  - Auto-brightness for dark product photos
-
-Canvas (default 1080×1080):
-┌──────────────────────┬──────────────┐
-│                      │ accent stripe│
-│                      │              │
-│                      │  CATEGORY    │
-│   [  PRODUCT PNG  ]  │  ─────────   │
-│   (60% width)        │  HEADLINE    │
-│   enhanced + shadow  │              │
-│                      │  body text   │
-│                      │              │
-│                      │  [ CTA BTN ] │
-│                      │              │
-└──────────────────────┴──────────────┘
+Layout (Instagram 1080×1080):
+  ┌────────────────────────┬──────────────────┐
+  │                        │ [CATEGORY BADGE] │
+  │   ░░ PRODUCT GLOW ░░  │  ──────────────  │
+  │   ░░  [ PRODUCT ]  ░░  │  HEADLINE BOLD   │
+  │   ░░    shadow     ░░  │  ─────────────── │
+  │   [ floor reflect ]    │  body text       │
+  │                        │                  │
+  │  ◈ diagonal accent◈   │  [ CTA BUTTON ]  │
+  │                        │  #tag  #tag      │
+  └────────────────────────┴──────────────────┘
 """
 import io
 from PIL import Image, ImageDraw, ImageFilter
 from bot.font_manager import get_font, prepare_text, is_rtl
 from bot.templates._utils import safe_get
 from bot.templates._effects import (
-    enhance_product, add_drop_shadow, make_gradient,
-    wrap_text, measure_text,
+    enhance_product, add_drop_shadow, add_glow_behind,
+    add_product_reflection, make_gradient, make_radial_glow,
+    add_dot_pattern, add_vignette, add_frosted_glass_panel,
+    draw_text_with_shadow, wrap_text, measure_text,
 )
 
 
 GRADIENTS = {
-    "food":      [(255, 107, 53),  (255, 140, 80)],
-    "fashion":   [(35, 25, 55),    (55, 35, 85)],
-    "tech":      [(18, 28, 50),    (28, 50, 90)],
-    "services":  [(70, 90, 180),   (100, 60, 160)],
-    "wellness":  [(40, 120, 80),   (60, 160, 100)],
-    "beauty":    [(180, 50, 110),  (220, 100, 150)],
-    "retail":    [(40, 30, 70),    (80, 50, 120)],
-    "clothing":  [(30, 20, 50),    (60, 30, 80)],
-    "other":     [(50, 40, 80),    (80, 60, 120)],
+    "food":      [(230, 80, 30),   (190, 30, 80)],
+    "fashion":   [(18, 10, 42),    (45, 18, 80)],
+    "tech":      [(10, 18, 45),    (22, 48, 100)],
+    "services":  [(55, 80, 190),   (90, 50, 160)],
+    "wellness":  [(20, 100, 60),   (50, 160, 100)],
+    "beauty":    [(160, 30, 90),   (210, 90, 145)],
+    "retail":    [(35, 25, 65),    (70, 42, 115)],
+    "clothing":  [(25, 15, 45),    (55, 28, 80)],
+    "other":     [(40, 30, 80),    (75, 52, 130)],
+}
+
+RIGHT_BG = {
+    "food":      [(245, 230, 215), (255, 245, 235)],
+    "fashion":   [(248, 244, 255), (238, 232, 252)],
+    "tech":      [(240, 244, 252), (228, 236, 250)],
+    "services":  [(240, 242, 255), (228, 232, 252)],
+    "wellness":  [(238, 252, 244), (225, 245, 234)],
+    "beauty":    [(255, 240, 248), (252, 228, 240)],
+    "retail":    [(248, 244, 255), (235, 230, 252)],
+    "clothing":  [(248, 244, 255), (235, 230, 252)],
+    "other":     [(245, 242, 255), (232, 228, 252)],
 }
 
 ACCENT_COLORS = {
-    "food":      (255, 200, 60),
-    "fashion":   (255, 100, 130),
-    "tech":      (0, 180, 255),
-    "services":  (255, 200, 80),
-    "wellness":  (120, 255, 160),
-    "beauty":    (255, 200, 220),
-    "retail":    (255, 180, 80),
+    "food":      (255, 200, 50),
+    "fashion":   (255, 110, 145),
+    "tech":      (0, 200, 255),
+    "services":  (255, 195, 70),
+    "wellness":  (80, 230, 140),
+    "beauty":    (255, 195, 220),
+    "retail":    (255, 175, 70),
     "clothing":  (255, 130, 100),
-    "other":     (255, 200, 100),
+    "other":     (255, 200, 90),
+}
+
+TEXT_COLORS = {
+    "food":      (60, 20, 10),
+    "fashion":   (30, 18, 60),
+    "tech":      (20, 30, 75),
+    "services":  (25, 30, 90),
+    "wellness":  (15, 60, 35),
+    "beauty":    (80, 15, 50),
+    "retail":    (30, 20, 65),
+    "clothing":  (25, 15, 55),
+    "other":     (30, 25, 70),
 }
 
 
@@ -67,7 +83,7 @@ def compose(
     language: str = "en",
     brand_color: tuple = None,
 ) -> bytes:
-    """Render a Split Screen ad poster — market-grade quality."""
+    """Render a Split Screen ad — agency-grade quality."""
 
     sizes = {
         "instagram": (1080, 1080),
@@ -78,112 +94,149 @@ def compose(
 
     biz = (business_type or "other").lower()
     grad_top, grad_bot = GRADIENTS.get(biz, GRADIENTS["other"])
-    accent = brand_color or ACCENT_COLORS.get(biz, (255, 200, 100))
+    rt, rb = RIGHT_BG.get(biz, RIGHT_BG["other"])
+    accent = brand_color or ACCENT_COLORS.get(biz, (255, 200, 90))
+    text_col = TEXT_COLORS.get(biz, (30, 25, 70))
 
-    # ── Layout split ──────────────────────────────────────────────────────────
-    split_x = int(W * 0.55)        # Product side = 55%
-    text_zone_x = split_x + 12     # After accent stripe
-    text_zone_w = W - text_zone_x - int(W * 0.04)  # Right padding
+    # ── Layout ────────────────────────────────────────────────────────────────
+    split_x = int(W * 0.54)
+    text_zone_x = split_x + 16
+    text_zone_w = W - text_zone_x - int(W * 0.035)
 
-    # ── Canvas — slightly lighter gradient for the right panel ────────────────
+    # ── Canvas: two panel gradients ───────────────────────────────────────────
     canvas = Image.new("RGB", (W, H))
-
-    # Left panel: darker gradient (product backdrop)
     left_panel = make_gradient((split_x, H), grad_top, grad_bot)
     canvas.paste(left_panel, (0, 0))
-
-    # Right panel: slightly lighter
-    right_top = tuple(min(255, c + 15) for c in grad_top)
-    right_bot = tuple(min(255, c + 10) for c in grad_bot)
-    right_panel = make_gradient((W - split_x, H), right_top, right_bot)
+    right_panel = make_gradient((W - split_x, H), rt, rb)
     canvas.paste(right_panel, (split_x, 0))
-
     canvas = canvas.convert("RGBA")
 
-    # ── Accent stripe between panels ──────────────────────────────────────────
-    stripe = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    s_draw = ImageDraw.Draw(stripe)
-    stripe_w = 5
-    s_draw.rectangle([split_x - stripe_w // 2, 0, split_x + stripe_w // 2, H],
-                      fill=accent + (180,))
-    canvas = Image.alpha_composite(canvas, stripe)
+    # Left panel: dot texture
+    left_dot = add_dot_pattern(
+        Image.new("RGBA", (split_x, H), (0, 0, 0, 0)),
+        spacing=38, dot_size=2, opacity=14
+    )
+    canvas.paste(left_dot, (0, 0), left_dot)
+
+    # ── Diagonal accent stripe between panels ─────────────────────────────────
+    stripe_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    s_draw = ImageDraw.Draw(stripe_layer)
+    # Angled stripe: slightly diagonal
+    slant = int(H * 0.04)
+    pts = [
+        (split_x - 8, 0),
+        (split_x + 8, 0),
+        (split_x + 8 + slant, H),
+        (split_x - 8 + slant, H),
+    ]
+    s_draw.polygon(pts, fill=(*accent[:3], 180))
+    stripe_layer = stripe_layer.filter(ImageFilter.GaussianBlur(radius=2))
+    canvas = Image.alpha_composite(canvas, stripe_layer)
+
+    # ── Left panel radial glow (behind product) ───────────────────────────────
+    center_lx = split_x // 2
+    center_ly = H // 2
+    glow_overlay = make_radial_glow(
+        (W, H), (center_lx, center_ly),
+        tuple(min(255, c + 70) for c in grad_top),
+        int(min(split_x, H) * 0.45), opacity=55
+    )
+    canvas = Image.alpha_composite(canvas, glow_overlay)
 
     draw = ImageDraw.Draw(canvas)
-    rtl = is_rtl(language)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # LEFT PANEL — Product image (enhanced, with shadow)
+    # LEFT PANEL — Product image
     # ══════════════════════════════════════════════════════════════════════════
     product = Image.open(io.BytesIO(product_png)).convert("RGBA")
-    product = enhance_product(product, target_brightness=1.5)
+    product = enhance_product(product, target_brightness=1.50)
 
-    # Scale product to fill left panel (85% of panel width, 70% of height)
-    prod_max_w = int(split_x * 0.85)
-    prod_max_h = int(H * 0.70)
+    prod_max_w = int(split_x * 0.88)
+    prod_max_h = int(H * 0.72)
     product.thumbnail((prod_max_w, prod_max_h), Image.LANCZOS)
     pw, ph = product.size
 
-    # Center product in left panel
     px = (split_x - pw) // 2
     py = (H - ph) // 2
 
-    # Subtle glow behind product
-    glow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    g_draw = ImageDraw.Draw(glow_layer)
-    glow_r = max(pw, ph) // 2 + 40
-    g_center_x = px + pw // 2
-    g_center_y = py + ph // 2
-    g_draw.ellipse([g_center_x - glow_r, g_center_y - glow_r,
-                     g_center_x + glow_r, g_center_y + glow_r],
-                    fill=(255, 255, 255, 30))
-    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=50))
-    canvas = Image.alpha_composite(canvas, glow_layer)
-
-    # Drop shadow + paste product
-    canvas = add_drop_shadow(canvas, product, (px, py),
-                             shadow_opacity=100, shadow_offset=(8, 14), blur_radius=25)
+    # Accent-coloured glow behind product
+    canvas = add_glow_behind(
+        canvas, product, (px, py),
+        glow_color=tuple(min(255, c + 80) for c in accent[:3]),
+        glow_opacity=55, glow_radius=75, glow_scale=1.35
+    )
+    # White inner halo
+    canvas = add_glow_behind(
+        canvas, product, (px, py),
+        glow_color=(255, 255, 255), glow_opacity=28,
+        glow_radius=30, glow_scale=1.10
+    )
+    canvas = add_drop_shadow(
+        canvas, product, (px, py),
+        shadow_opacity=130, shadow_offset=(10, 18), blur_radius=35
+    )
+    canvas = add_product_reflection(canvas, product, (px, py), opacity=35, height_fraction=0.18)
 
     draw = ImageDraw.Draw(canvas)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # RIGHT PANEL — Text content
+    # RIGHT PANEL — Text
     # ══════════════════════════════════════════════════════════════════════════
-    text_x = text_zone_x + int(W * 0.02)
-    cy = int(H * 0.12)  # Start text lower for breathing space
+    text_x = text_zone_x + int(W * 0.018)
+    cy = int(H * 0.10)
 
-    # ── Category label (small, accent colored) ────────────────────────────────
-    cat_font = get_font(language, size=max(22, W // 42), bold=True)
+    # Category badge (pill)
+    cat_size = max(20, W // 46)
+    cat_font = get_font(language, size=cat_size, bold=True)
     cat_text = prepare_text((biz or "AD").upper(), language)
-    draw.text((text_x, cy), cat_text, font=cat_font, fill=accent)
-    cy += int(H * 0.045)
+    cw, ch = measure_text(draw, cat_text, cat_font)
+    badge_px, badge_py = 16, 7
+    badge_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    b_draw = ImageDraw.Draw(badge_layer)
+    b_draw.rounded_rectangle(
+        [text_x, cy, text_x + cw + badge_px * 2, cy + ch + badge_py * 2],
+        radius=(ch + badge_py * 2) // 2, fill=(*accent[:3], 210)
+    )
+    canvas = Image.alpha_composite(canvas, badge_layer)
+    draw = ImageDraw.Draw(canvas)
+    brightness = (accent[0] * 299 + accent[1] * 587 + accent[2] * 114) / 1000
+    badge_text_col = (15, 15, 15) if brightness > 130 else (255, 255, 255)
+    draw.text((text_x + badge_px, cy + badge_py), cat_text, font=cat_font, fill=badge_text_col)
+    cy += ch + badge_py * 2 + int(H * 0.025)
 
-    # ── Small accent line ─────────────────────────────────────────────────────
-    draw.rectangle([text_x, cy, text_x + int(text_zone_w * 0.35), cy + 3], fill=accent)
-    cy += int(H * 0.035)
+    # Accent divider
+    draw.rectangle([text_x, cy, text_x + int(text_zone_w * 0.40), cy + 4], fill=accent[:3])
+    cy += int(H * 0.030)
 
-    # ── Headline (large, bold) ────────────────────────────────────────────────
+    # Headline
     headline = prepare_text(safe_get(copy, "headline", "Your Product"), language)
-    h_size = max(44, W // 20)
+    h_size = max(46, W // 19)
     h_font = get_font(language, size=h_size, bold=True)
     wrapped_h = wrap_text(draw, headline, h_font, text_zone_w)
-    h_bbox_full = draw.multiline_textbbox((0, 0), wrapped_h, font=h_font)
-    total_hh = h_bbox_full[3] - h_bbox_full[1]
+    h_bbox = draw.multiline_textbbox((0, 0), wrapped_h, font=h_font)
+    total_hh = h_bbox[3] - h_bbox[1]
 
-    draw.multiline_text((text_x, cy), wrapped_h, font=h_font, fill=(255, 255, 255))
-    cy += total_hh + int(H * 0.03)
+    canvas = draw_text_with_shadow(
+        canvas, (text_x, cy), wrapped_h, h_font,
+        fill=text_col, shadow_color=(200, 200, 220),
+        shadow_offset=2, shadow_blur=5, multiline=True
+    )
+    draw = ImageDraw.Draw(canvas)
+    cy += total_hh + int(H * 0.022)
 
-    # ── Body text ─────────────────────────────────────────────────────────────
-    body = prepare_text(safe_get(copy, "body")[:130], language)
+    # Body text
+    body = prepare_text(safe_get(copy, "body", "")[:140], language)
     b_size = max(24, W // 36)
     b_font = get_font(language, size=b_size)
-    wrapped_b = wrap_text(draw, body, b_font, text_zone_w)
-    b_bbox_full = draw.multiline_textbbox((0, 0), wrapped_b, font=b_font)
-    total_bh = b_bbox_full[3] - b_bbox_full[1]
+    wrapped_b = wrap_text(draw, body, b_font, text_zone_w - 10)
+    b_bbox = draw.multiline_textbbox((0, 0), wrapped_b, font=b_font)
+    total_bh = b_bbox[3] - b_bbox[1]
 
-    draw.multiline_text((text_x, cy), wrapped_b, font=b_font, fill=(200, 200, 210))
-    cy += total_bh + int(H * 0.04)
+    draw.multiline_text((text_x, cy), wrapped_b, font=b_font,
+                         fill=(*text_col[:3], 200), align="left")
+    cy += total_bh + int(H * 0.038)
 
-    # ── CTA button ────────────────────────────────────────────────────────────
+    # CTA button (right panel width)
     cta = prepare_text(safe_get(copy, "cta", "Shop Now →"), language)
     cta_size = max(30, W // 30)
     cta_font = get_font(language, size=cta_size, bold=True)
@@ -191,33 +244,53 @@ def compose(
     cta_tw = ct_bbox[2] - ct_bbox[0]
     cta_th = ct_bbox[3] - ct_bbox[1]
 
-    pad_x, pad_y = 40, 18
-    btn_w = max(cta_tw + pad_x * 2, int(text_zone_w * 0.80))
+    pad_x, pad_y = 36, 18
+    btn_w = max(cta_tw + pad_x * 2, int(text_zone_w * 0.85))
     btn_h = cta_th + pad_y * 2
     btn_x = text_x
-    btn_y = min(cy, H - btn_h - int(H * 0.06))
+    btn_y = min(cy, H - btn_h - int(H * 0.055))
 
     # Button shadow
-    shadow_btn = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    sb_draw = ImageDraw.Draw(shadow_btn)
-    sb_draw.rounded_rectangle([btn_x + 3, btn_y + 4, btn_x + btn_w + 3, btn_y + btn_h + 4],
-                               radius=btn_h // 2, fill=(0, 0, 0, 70))
-    shadow_btn = shadow_btn.filter(ImageFilter.GaussianBlur(radius=6))
-    canvas = Image.alpha_composite(canvas, shadow_btn)
+    shad = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    s2 = ImageDraw.Draw(shad)
+    s2.rounded_rectangle(
+        [btn_x + 3, btn_y + 6, btn_x + btn_w + 3, btn_y + btn_h + 6],
+        radius=btn_h // 2, fill=(0, 0, 0, 60)
+    )
+    shad = shad.filter(ImageFilter.GaussianBlur(radius=8))
+    canvas = Image.alpha_composite(canvas, shad)
     draw = ImageDraw.Draw(canvas)
 
-    draw.rounded_rectangle([btn_x, btn_y, btn_x + btn_w, btn_y + btn_h],
-                            radius=btn_h // 2, fill=accent)
+    btn_img = make_gradient(
+        (btn_w, btn_h),
+        tuple(min(255, c + 30) for c in accent[:3]),
+        tuple(max(0, c - 15)  for c in accent[:3]),
+    )
+    btn_rgba = btn_img.convert("RGBA")
+    mask = Image.new("L", (btn_w, btn_h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, btn_w, btn_h], radius=btn_h // 2, fill=230)
+    btn_rgba.putalpha(mask)
+    canvas.paste(btn_rgba, (btn_x, btn_y), btn_rgba)
+    draw = ImageDraw.Draw(canvas)
 
-    brightness = (accent[0] * 299 + accent[1] * 587 + accent[2] * 114) / 1000
-    btn_text_color = (20, 20, 20) if brightness > 128 else (255, 255, 255)
+    draw.text(
+        (btn_x + (btn_w - cta_tw) // 2, btn_y + pad_y),
+        cta, font=cta_font, fill=badge_text_col
+    )
 
-    tx = btn_x + (btn_w - cta_tw) // 2
-    ty = btn_y + pad_y
-    draw.text((tx, ty), cta, font=cta_font, fill=btn_text_color)
+    # Hashtags under button
+    tags = copy.get("hashtags", [])
+    if tags:
+        tag_str = " ".join(f"#{t}" if not t.startswith("#") else t for t in tags[:3])
+        tag_size = max(16, W // 64)
+        tag_font = get_font(language, size=tag_size)
+        tag_y = btn_y + btn_h + int(H * 0.018)
+        if tag_y < H - int(H * 0.02):
+            draw.text((text_x, tag_y), tag_str, font=tag_font,
+                      fill=(*accent[:3], 160))
 
-    # ── Final output ──────────────────────────────────────────────────────────
+    # ── Final output ───────────────────────────────────────────────────────────
     final = canvas.convert("RGB")
     buf = io.BytesIO()
-    final.save(buf, format="JPEG", quality=93)
+    final.save(buf, format="JPEG", quality=95, optimize=True)
     return buf.getvalue()

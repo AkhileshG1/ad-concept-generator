@@ -13,7 +13,11 @@ build/
 venv/
 .venv/
 env/
+
+# Environment / secrets — NEVER commit these
 .env
+*.pem
+*.key
 
 # IDE
 .vscode/
@@ -21,18 +25,31 @@ env/
 *.swp
 *.swo
 
-# OS
+# macOS
 .DS_Store
+
+# Windows
 Thumbs.db
 
-# Secrets / local config
-.env
-*.pem
-*.key
-
-# Generated files
-docs/*.pptx
+# Generated / output files
 *.log
+output/
+generated/
+
+# Fonts cache (downloaded at runtime)
+fonts/*.ttf
+fonts/*.otf
+fonts/*.woff
+fonts/*.woff2
+
+# Pitch deck (generated file, not source)
+docs/*.pptx
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
 
 # Node (if added later)
 node_modules/
+package-lock.json

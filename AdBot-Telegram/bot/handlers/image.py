@@ -115,28 +115,88 @@ async def _compositor_pipeline(message, context, user_id: int, session):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# v1 — Pollinations FLUX Fallback Pipeline
+# v1 — Pollinations FLUX → Scene Overlay Compositor Pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def _pollinations_pipeline(message, context, user_id: int, session):
     """
-    v1 fallback: text-to-image via Pollinations FLUX.
-    Used when: no photo uploaded, or compositor fails.
+    v1 path: AI scene image → scene_overlay compositor → branded ad poster.
+
+    Pipeline:
+      1. Pollinations FLUX generates a photorealistic scene/product image
+      2. scene_overlay template composites professional typography on top:
+           - Smart crop to platform canvas size
+           - Dark gradient overlay for text readability
+           - Frosted glass headline panel
+           - Full body text (properly wrapped, no truncation)
+           - Premium CTA pill button
+           - Hashtag strip
+      3. Deliver the branded JPEG — never a raw AI image
+
+    This guarantees every output looks professional regardless of image source.
     """
+    copy = session.current_copy or {}
+    business_type = session.business_type or "other"
+    platform = session.platform or "instagram"
+
+    language = "en"
+    try:
+        from bot.language import get_session_language
+        language = get_session_language(session)
+    except Exception:
+        pass
+
     img_prompt = build_image_prompt(session)
     loop = asyncio.get_running_loop()
+
+    await message.reply_text(
+        "🎨 Generating your scene image… (~5-10s)"
+    )
 
     try:
         url, img_bytes = await loop.run_in_executor(
             None, generate_image, img_prompt
         )
     except Exception as e:
-        logger.error(f"Pollinations pipeline failed: {e}")
+        logger.error(f"Pollinations generation failed: {e}")
         url, img_bytes = None, None
+
+    # ── Compositor pass: always overlay branding on the AI image ─────────────
+    if img_bytes:
+        try:
+            from bot.templates import scene_overlay
+            await message.reply_text("✨ Applying professional layout…")
+
+            final_bytes = await loop.run_in_executor(
+                None,
+                lambda: scene_overlay.compose(
+                    scene_image_bytes=img_bytes,
+                    copy=copy,
+                    platform=platform,
+                    business_type=business_type,
+                    language=language,
+                )
+            )
+            logger.info(
+                f"Scene overlay success for user {user_id}, "
+                f"{len(final_bytes):,} bytes."
+            )
+            img_bytes = final_bytes
+            url = None  # always deliver bytes, not URL
+        except Exception as e:
+            logger.error(
+                f"Scene overlay compositor failed for user {user_id}: {e}. "
+                f"Falling back to raw Pollinations image."
+            )
+            # img_bytes stays as raw Pollinations image — acceptable fallback
 
     session.record_image()
     session.current_image_url = url or ""
     session.state = State.DONE
 
     from bot.handlers.deliver import deliver_full_pack
-    await deliver_full_pack(message, context, user_id, img_url=url, img_bytes=img_bytes)
+    await deliver_full_pack(
+        message, context, user_id,
+        img_url=url if not img_bytes else None,
+        img_bytes=img_bytes,
+    )
